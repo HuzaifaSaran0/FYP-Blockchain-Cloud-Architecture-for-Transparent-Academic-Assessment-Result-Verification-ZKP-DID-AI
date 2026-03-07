@@ -24,6 +24,9 @@ INSTALLED_APPS = [
     # Local
     "accounts",
     "examination",
+    "blockchain_layer",
+    "monitoring",
+    "face_recognition",
 ]
 
 MIDDLEWARE = [
