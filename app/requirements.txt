@@ -7,4 +7,5 @@ django-cors-headers==4.7.0
 Pillow==11.2.1
 deepface==0.0.93
 tf-keras==2.19.0
+opencv-python-headless==4.10.0.84
 reportlab==4.4.1

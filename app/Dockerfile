@@ -9,7 +9,15 @@ ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
 
 # install system dependencies
-RUN apt-get update && apt-get install -y netcat-openbsd
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    netcat-openbsd \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender1 \
+    libxcb1 \
+    && rm -rf /var/lib/apt/lists/*
 
 # install dependencies
 RUN pip install --upgrade pip
