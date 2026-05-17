@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.utils import timezone
-from .models import Exam, Registration, Result
+from .models import Exam, Registration, Result, Question, QuestionOption
 import base64
 import uuid
 import re
@@ -23,10 +23,11 @@ class ExamListSerializer(serializers.ModelSerializer):
             "enrolled_count",
             "description",
             "status",
+            "exam_type",
+            "duration_minutes",
             "created_at",
         ]
         read_only_fields = ["id", "created_at", "enrolled_count"]
-
 
 class ExamDetailSerializer(serializers.ModelSerializer):
     enrolled_count = serializers.IntegerField(read_only=True)
@@ -44,12 +45,13 @@ class ExamDetailSerializer(serializers.ModelSerializer):
             "enrolled_count",
             "description",
             "status",
+            "exam_type",
+            "duration_minutes",
             "created_at",
         ]
         read_only_fields = ["id", "created_at", "enrolled_count", "status"]
 
     def validate_date(self, value):
-        # Only enforce future date on creation
         if self.instance is None and value < timezone.now().date():
             raise serializers.ValidationError(
                 "Exam date cannot be in the past."
@@ -58,28 +60,38 @@ class ExamDetailSerializer(serializers.ModelSerializer):
 
     def validate_total_seats(self, value):
         if value < 1:
-            raise serializers.ValidationError(
-                "Total seats must be at least 1."
-            )
+            raise serializers.ValidationError("Total seats must be at least 1.")
         if value > 10000:
-            raise serializers.ValidationError(
-                "Total seats cannot exceed 10,000."
-            )
+            raise serializers.ValidationError("Total seats cannot exceed 10,000.")
         return value
 
     def validate_title(self, value):
         if len(value.strip()) < 3:
-            raise serializers.ValidationError(
-                "Title must be at least 3 characters."
-            )
+            raise serializers.ValidationError("Title must be at least 3 characters.")
         return value.strip()
 
     def validate_venue(self, value):
         if len(value.strip()) < 3:
-            raise serializers.ValidationError(
-                "Venue must be at least 3 characters."
-            )
+            raise serializers.ValidationError("Venue must be at least 3 characters.")
         return value.strip()
+
+    def validate_duration_minutes(self, value):
+        if value < 10:
+            raise serializers.ValidationError(
+                "Duration must be at least 10 minutes."
+            )
+        if value > 360:
+            raise serializers.ValidationError(
+                "Duration cannot exceed 360 minutes (6 hours)."
+            )
+        return value
+
+    def validate_exam_type(self, value):
+        if value not in ["paper", "computer"]:
+            raise serializers.ValidationError(
+                "exam_type must be 'paper' or 'computer'."
+            )
+        return value
 
 
 class ExamStatusSerializer(serializers.Serializer):
@@ -314,3 +326,68 @@ class RegistrationRejectSerializer(serializers.Serializer):
             "min_length": "Reason must be at least 5 characters.",
         }
     )
+
+# ─────────────────────────────────────────────
+# QUESTION SERIALIZERS
+# ─────────────────────────────────────────────
+
+class QuestionOptionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = QuestionOption
+        fields = ["id", "text", "is_correct", "order"]
+
+
+class QuestionCreateSerializer(serializers.ModelSerializer):
+    options = QuestionOptionSerializer(many=True)
+
+    class Meta:
+        model = Question
+        fields = ["id", "text", "marks", "order", "options", "created_at"]
+        read_only_fields = ["id", "created_at"]
+
+    def validate_options(self, options):
+        if len(options) < 2:
+            raise serializers.ValidationError(
+                "A question must have at least 2 options."
+            )
+        if len(options) > 5:
+            raise serializers.ValidationError(
+                "A question cannot have more than 5 options."
+            )
+        correct_count = sum(1 for opt in options if opt.get("is_correct", False))
+        if correct_count == 0:
+            raise serializers.ValidationError(
+                "Exactly one option must be marked as correct."
+            )
+        if correct_count > 1:
+            raise serializers.ValidationError(
+                "Only one option can be marked as correct."
+            )
+        return options
+
+    def create(self, validated_data):
+        options_data = validated_data.pop("options")
+        question = Question.objects.create(**validated_data)
+        for option_data in options_data:
+            QuestionOption.objects.create(question=question, **option_data)
+        return question
+
+    def update(self, instance, validated_data):
+        options_data = validated_data.pop("options", None)
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        if options_data is not None:
+            instance.options.all().delete()
+            for option_data in options_data:
+                QuestionOption.objects.create(question=instance, **option_data)
+        return instance
+
+
+class QuestionListSerializer(serializers.ModelSerializer):
+    options = QuestionOptionSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Question
+        fields = ["id", "text", "marks", "order", "options", "created_at"]
+        read_only_fields = fields

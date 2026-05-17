@@ -1,14 +1,19 @@
+import uuid
 import logging
+from datetime import timedelta
+
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
 
 from examination.models import Exam, Registration
-from .models import CheckinLog
+from .models import CheckinLog, ExamSession
 from .face_utils import decode_base64_to_tempfile, verify_face, cleanup_tempfile
 from monitoring.utils import log_activity
+
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +26,6 @@ def _get_client_ip(request) -> str | None:
 
 
 def _log_checkin(exam, registration, matched, distance, ip):
-    """Creates a CheckinLog entry for every attempt."""
     CheckinLog.objects.create(
         exam=exam,
         registration=registration if matched else None,
@@ -31,26 +35,25 @@ def _log_checkin(exam, registration, matched, distance, ip):
     )
 
 
+def _create_exam_session(registration, exam) -> ExamSession:
+    token = uuid.uuid4().hex
+    expires_at = timezone.now() + timedelta(minutes=exam.duration_minutes)
+    return ExamSession.objects.create(
+        registration=registration,
+        exam=exam,
+        token=token,
+        expires_at=expires_at,
+    )
+
+
 class FaceVerifyView(APIView):
     """
     POST /api/face/verify/
-    JWT required.
 
     Body (JSON):
     {
         "image":   "data:image/jpeg;base64,...",
         "exam_id": 1
-    }
-
-    Response (both matched and unmatched return 200):
-    {
-        "matched": true/false,
-        "student_name": "...",
-        "registration_id": 1,
-        "did": "did:acadchain:...",
-        "exam_title": "...",
-        "reference_number": "...",
-        "message": "..."
     }
     """
     permission_classes = [IsAuthenticated]
@@ -60,7 +63,6 @@ class FaceVerifyView(APIView):
         exam_id = request.data.get("exam_id")
         ip = _get_client_ip(request)
 
-        # ── Validation ──────────────────────────────────────────
         if not image_b64:
             return Response(
                 {"detail": "image field is required."},
@@ -74,7 +76,6 @@ class FaceVerifyView(APIView):
 
         exam = get_object_or_404(Exam, pk=exam_id)
 
-        # ── Decode live image to temp file ───────────────────────
         live_path = None
         try:
             live_path = decode_base64_to_tempfile(image_b64)
@@ -84,7 +85,6 @@ class FaceVerifyView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # ── Load approved registrations for this exam ────────────
         registrations = Registration.objects.filter(
             exam=exam,
             status="approved",
@@ -100,13 +100,15 @@ class FaceVerifyView(APIView):
                     "registration_id": None,
                     "did": None,
                     "exam_title": exam.title,
+                    "exam_type": exam.exam_type,
                     "reference_number": None,
+                    "exam_session_token": None,
+                    "expires_at": None,
                     "message": "No approved registrations found for this exam.",
                 },
                 status=status.HTTP_200_OK,
             )
 
-        # ── Compare live face against each stored face ───────────
         matched_registration = None
         best_distance = 1.0
 
@@ -115,12 +117,10 @@ class FaceVerifyView(APIView):
             try:
                 result = verify_face(live_path, stored_path)
                 if result["matched"]:
-                    # Keep the closest match
                     if result["distance"] < best_distance:
                         best_distance = result["distance"]
                         matched_registration = reg
             except ValueError as e:
-                # No face detected in live image — abort immediately
                 error_msg = str(e).lower()
                 if "no face detected" in error_msg or "clearly visible" in error_msg:
                     cleanup_tempfile(live_path)
@@ -128,7 +128,6 @@ class FaceVerifyView(APIView):
                         {"detail": str(e)},
                         status=status.HTTP_400_BAD_REQUEST,
                     )
-                # Stored image face detection issue — skip and continue
                 logger.warning(
                     f"Face verification skipped for reg {reg.id}: {e}"
                 )
@@ -136,15 +135,23 @@ class FaceVerifyView(APIView):
 
         cleanup_tempfile(live_path)
 
-        # ── Build response ───────────────────────────────────────
         if matched_registration:
             _log_checkin(exam, matched_registration, True, best_distance, ip)
+
+            # ── Create session token for computer-based exams only ──
+            exam_session_token = None
+            expires_at = None
+
+            if exam.exam_type == "computer":
+                session = _create_exam_session(matched_registration, exam)
+                exam_session_token = session.token
+                expires_at = session.expires_at
 
             log_activity(
                 action=(
                     f"Face check-in GRANTED: {matched_registration.full_name} "
                     f"(REF: {matched_registration.reference_number}) "
-                    f"— Exam: {exam.title}"
+                    f"— Exam: {exam.title} [{exam.exam_type}]"
                 ),
                 performed_by=request.user.full_name,
                 request=request,
@@ -157,7 +164,10 @@ class FaceVerifyView(APIView):
                     "registration_id": matched_registration.id,
                     "did": matched_registration.did,
                     "exam_title": exam.title,
+                    "exam_type": exam.exam_type,
                     "reference_number": matched_registration.reference_number,
+                    "exam_session_token": exam_session_token,
+                    "expires_at": expires_at,
                     "message": "Identity verified. Entry granted.",
                 },
                 status=status.HTTP_200_OK,
@@ -179,7 +189,10 @@ class FaceVerifyView(APIView):
                 "registration_id": None,
                 "did": None,
                 "exam_title": exam.title,
+                "exam_type": exam.exam_type,
                 "reference_number": None,
+                "exam_session_token": None,
+                "expires_at": None,
                 "message": "No matching student found. Entry denied.",
             },
             status=status.HTTP_200_OK,

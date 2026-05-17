@@ -17,6 +17,7 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/auth/", include("accounts.urls")),
     path("api/exams/", include("examination.urls")),
+    path("api/exams/<int:exam_id>/questions/", include("examination.question_urls")),
     path("api/registrations/", include("examination.registration_urls")),
     path("api/face/", include("face_recognition.urls")),
     path("api/public/", include((public_patterns, "public"))),

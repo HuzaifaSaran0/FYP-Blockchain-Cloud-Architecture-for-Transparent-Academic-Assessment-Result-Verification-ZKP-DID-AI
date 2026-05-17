@@ -14,6 +14,10 @@ class Exam(models.Model):
         ("bachelors", "Bachelors"),
         ("masters", "Masters"),
     ]
+    EXAM_TYPE_CHOICES = [
+        ("paper", "Paper Based"),
+        ("computer", "Computer Based"),
+    ]
 
     title = models.CharField(max_length=255)
     education_level = models.CharField(max_length=50, choices=EDUCATION_CHOICES)
@@ -23,6 +27,15 @@ class Exam(models.Model):
     total_seats = models.PositiveIntegerField(default=100)
     description = models.TextField(blank=True, default="")
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="upcoming")
+    exam_type = models.CharField(
+        max_length=20,
+        choices=EXAM_TYPE_CHOICES,
+        default="computer",
+    )
+    duration_minutes = models.PositiveIntegerField(
+        default=60,
+        help_text="Duration in minutes. Only enforced for computer-based exams.",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -92,6 +105,11 @@ class Result(models.Model):
         ("pass", "Pass"),
         ("fail", "Fail"),
     ]
+    ATTEMPT_TYPE_CHOICES = [
+    ("auto", "Auto — Computer Based"),
+    ("manual", "Manual — Paper Based"),
+    ]
+
 
     registration = models.OneToOneField(
         Registration,
@@ -109,6 +127,9 @@ class Result(models.Model):
     result_status = models.CharField(
         max_length=10, choices=STATUS_CHOICES, blank=True
     )
+    attempt_type = models.CharField(
+        max_length=10, choices=ATTEMPT_TYPE_CHOICES, default="manual", blank=True,
+    )
     certificate_id = models.CharField(max_length=50, unique=True, blank=True)
     result_hash = models.CharField(max_length=255, blank=True)
     blockchain_tx = models.CharField(max_length=255, blank=True)
@@ -120,3 +141,69 @@ class Result(models.Model):
 
     def __str__(self):
         return f"{self.registration.full_name} — {self.exam.title}"
+
+class Question(models.Model):
+    exam = models.ForeignKey(
+        Exam,
+        on_delete=models.CASCADE,
+        related_name="questions",
+    )
+    text = models.TextField()
+    marks = models.PositiveIntegerField(default=1)
+    order = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["order", "id"]
+
+    def __str__(self):
+        return self.text[:60]
+
+
+class QuestionOption(models.Model):
+    question = models.ForeignKey(
+        Question,
+        on_delete=models.CASCADE,
+        related_name="options",
+    )
+    text = models.CharField(max_length=255)
+    is_correct = models.BooleanField(default=False)
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["order", "id"]
+
+    def __str__(self):
+        return f"{self.text} ({'✓' if self.is_correct else '✗'})"
+
+
+class StudentAnswer(models.Model):
+    registration = models.ForeignKey(
+        Registration,
+        on_delete=models.CASCADE,
+        related_name="student_answers",
+    )
+    exam = models.ForeignKey(
+        Exam,
+        on_delete=models.CASCADE,
+        related_name="student_answers",
+    )
+    question = models.ForeignKey(
+        Question,
+        on_delete=models.CASCADE,
+        related_name="student_answers",
+    )
+    selected_option = models.ForeignKey(
+        QuestionOption,
+        on_delete=models.CASCADE,
+        related_name="student_answers",
+    )
+    is_correct = models.BooleanField(default=False)
+    answered_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["question__order", "question__id"]
+        unique_together = ["registration", "exam", "question"]
+
+    def __str__(self):
+        return f"{self.registration.full_name} — Q{self.question.id} — {'✓' if self.is_correct else '✗'}"

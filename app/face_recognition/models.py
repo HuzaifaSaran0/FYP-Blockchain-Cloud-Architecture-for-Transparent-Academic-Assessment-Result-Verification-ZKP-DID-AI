@@ -1,4 +1,6 @@
 from django.db import models
+import uuid
+from django.utils import timezone
 
 
 class FaceEncoding(models.Model):
@@ -39,3 +41,30 @@ class CheckinLog(models.Model):
         student = self.registration.full_name if self.registration else "Unknown"
         result = "GRANTED" if self.matched else "DENIED"
         return f"{result} — {student} — {self.exam.title}"
+
+
+class ExamSession(models.Model):
+    registration = models.ForeignKey(
+        "examination.Registration",
+        on_delete=models.CASCADE,
+        related_name="exam_sessions",
+    )
+    exam = models.ForeignKey(
+        "examination.Exam",
+        on_delete=models.CASCADE,
+        related_name="exam_sessions",
+    )
+    token = models.CharField(max_length=64, unique=True)
+    is_used = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Session — {self.registration.full_name} — {self.exam.title}"
+
+    @property
+    def is_expired(self):
+        return timezone.now() > self.expires_at
