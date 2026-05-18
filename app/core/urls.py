@@ -19,6 +19,8 @@ urlpatterns = [
     path("api/exams/", include("examination.urls")),
     path("api/exams/<int:exam_id>/questions/", include("examination.question_urls")),
     path("api/registrations/", include("examination.registration_urls")),
+    path("api/results/", include("examination.result_urls")),
+    path("api/attempt/", include("examination.attempt_urls")),
     path("api/face/", include("face_recognition.urls")),
     path("api/public/", include((public_patterns, "public"))),
 ]

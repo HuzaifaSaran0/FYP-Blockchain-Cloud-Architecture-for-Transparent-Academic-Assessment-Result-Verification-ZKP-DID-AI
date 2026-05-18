@@ -19,18 +19,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxcb1 \
     && rm -rf /var/lib/apt/lists/*
 
-# install dependencies
-RUN pip install --upgrade pip
+# ── Layer 1: Heavy ML deps — cached permanently unless version changes ──
+RUN pip install --upgrade pip && \
+    pip install \
+        deepface==0.0.93 \
+        tensorflow==2.19.1 \
+        tf-keras==2.19.0
+
+# ── Layer 2: Your project dependencies — rebuilds only when requirements.txt changes ──
 COPY ./requirements.txt .
 RUN pip install -r requirements.txt
 
-# copy entrypoint.sh
+# copy entrypoint
 COPY ./entrypoint.sh .
 RUN sed -i 's/\r$//g' /usr/src/app/entrypoint.sh
 RUN chmod +x /usr/src/app/entrypoint.sh
 
-# copy project
+# ── Layer 3: Your code — rebuilds in seconds ──
 COPY . .
 
-# run entrypoint.sh
 # ENTRYPOINT ["/usr/src/app/entrypoint.sh"]

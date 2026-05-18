@@ -3,6 +3,7 @@ import uuid
 import os
 import tempfile
 import logging
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -73,3 +74,51 @@ def cleanup_tempfile(path: str):
             os.remove(path)
     except Exception:
         pass
+
+
+
+def warmup_model():
+    """
+    Forces DeepFace + Facenet model to load into memory at server startup.
+    Creates two minimal valid JPEG temp files, runs a verify call,
+    then cleans up. All errors are caught — warmup failure never
+    blocks the server from starting.
+    """
+    tmp1 = None
+    tmp2 = None
+    try:
+        from deepface import DeepFace
+        from PIL import Image
+
+        # Create two minimal 100x100 white images
+        def _make_temp_image():
+            img = Image.fromarray(
+                np.ones((100, 100, 3), dtype=np.uint8) * 200
+            )
+            tmp = tempfile.NamedTemporaryFile(
+                delete=False, suffix=".jpg", prefix="warmup_"
+            )
+            img.save(tmp.name, format="JPEG")
+            tmp.close()
+            return tmp.name
+
+        tmp1 = _make_temp_image()
+        tmp2 = _make_temp_image()
+
+        # enforce_detection=False so blank images don't raise ValueError
+        DeepFace.verify(
+            img1_path=tmp1,
+            img2_path=tmp2,
+            model_name="Facenet",
+            detector_backend="opencv",
+            distance_metric="cosine",
+            enforce_detection=False,
+        )
+        logger.info("✅ DeepFace Facenet model warmed up successfully.")
+
+    except Exception as e:
+        # Non-fatal — server still starts, first real request loads the model
+        logger.warning(f"⚠️  DeepFace warmup skipped: {e}")
+    finally:
+        for path in [tmp1, tmp2]:
+            cleanup_tempfile(path)

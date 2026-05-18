@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import Exam, Registration, Result, Question, QuestionOption
+from .models import Exam, Registration, Result, Question, QuestionOption, StudentAnswer
 
 
 @admin.register(Exam)
@@ -124,3 +124,55 @@ class QuestionOptionAdmin(admin.ModelAdmin):
     list_display = ["id", "question", "text", "is_correct", "order"]
     list_filter = ["is_correct", "question__exam"]
     search_fields = ["text"]
+
+@admin.register(Result)
+class ResultAdmin(admin.ModelAdmin):
+    list_display = [
+        "id", "get_student_name", "get_exam_title", "marks_obtained",
+        "total_marks", "grade", "result_status", "attempt_type",
+        "is_published", "published_at",
+    ]
+    list_filter = ["result_status", "grade", "is_published", "attempt_type", "exam"]
+    search_fields = ["registration__full_name", "certificate_id"]
+    readonly_fields = [
+        "grade", "result_status", "certificate_id",
+        "result_hash", "blockchain_tx", "is_published", "published_at",
+    ]
+
+    @admin.display(description="Student")
+    def get_student_name(self, obj):
+        return obj.registration.full_name
+
+    @admin.display(description="Exam")
+    def get_exam_title(self, obj):
+        return obj.exam.title
+
+
+@admin.register(StudentAnswer)
+class StudentAnswerAdmin(admin.ModelAdmin):
+    list_display = [
+        "id", "get_student_name", "get_exam_title",
+        "get_question_short", "get_selected_option", "is_correct", "answered_at",
+    ]
+    list_filter = ["is_correct", "exam"]
+    search_fields = ["registration__full_name"]
+    readonly_fields = fields = [
+        "registration", "exam", "question",
+        "selected_option", "is_correct", "answered_at",
+    ]
+
+    @admin.display(description="Student")
+    def get_student_name(self, obj):
+        return obj.registration.full_name
+
+    @admin.display(description="Exam")
+    def get_exam_title(self, obj):
+        return obj.exam.title
+
+    @admin.display(description="Question")
+    def get_question_short(self, obj):
+        return obj.question.text[:40]
+
+    @admin.display(description="Selected")
+    def get_selected_option(self, obj):
+        return obj.selected_option.text
