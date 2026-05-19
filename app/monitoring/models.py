@@ -34,3 +34,16 @@ class ActivityLog(models.Model):
 
     def __str__(self):
         return f"{self.performed_by} — {self.action}"
+
+class BlockedIP(models.Model):
+    ip_address = models.GenericIPAddressField(unique=True)
+    reason = models.CharField(max_length=255)
+    blocked_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["-blocked_at"]
+
+    def __str__(self):
+        return f"{self.ip_address} blocked until {self.expires_at}"
