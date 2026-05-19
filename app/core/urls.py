@@ -24,6 +24,7 @@ urlpatterns = [
     path("api/face/", include("face_recognition.urls")),
     path("api/public/", include((public_patterns, "public"))),
     path("api/monitoring/", include("monitoring.urls")),
+    path("api/blockchain/", include("blockchain_layer.urls")),
 ]
 
 if settings.DEBUG:

@@ -34,7 +34,7 @@ RUN pip install -r requirements.txt
 COPY ./entrypoint.sh .
 RUN sed -i 's/\r$//g' /usr/src/app/entrypoint.sh
 RUN chmod +x /usr/src/app/entrypoint.sh
-
+RUN python -c "from deepface import DeepFace; DeepFace.build_model('Facenet')"
 # ── Layer 3: Your code — rebuilds in seconds ──
 COPY . .
 
