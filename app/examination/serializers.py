@@ -332,12 +332,6 @@ class RegistrationRejectSerializer(serializers.Serializer):
 # ─────────────────────────────────────────────
 
 class QuestionOptionSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = QuestionOption
-        fields = ["id", "text", "is_correct", "order"]
-
-
-class QuestionOptionSerializer(serializers.ModelSerializer):
     image = serializers.SerializerMethodField()
     image_upload = serializers.ImageField(
         write_only=True, required=False, allow_null=True

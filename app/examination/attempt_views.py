@@ -12,6 +12,7 @@ from blockchain_layer.utils import create_blockchain_record
 from monitoring.utils import log_activity
 from .emails import send_result_published
 
+
 def _sha256(data: str) -> str:
     return hashlib.sha256(data.encode("utf-8")).hexdigest()
 
@@ -120,7 +121,12 @@ class ExamAttemptStartView(APIView):
         questions_data = []
         for q in questions:
             options = [
-                {"id": opt.id, "text": opt.text, "order": opt.order}
+                {
+                    "id": opt.id,
+                    "text": opt.text,
+                    "order": opt.order,
+                    "image": request.build_absolute_uri(opt.image.url) if opt.image else None,
+                }
                 for opt in q.options.all()
             ]
             questions_data.append({
@@ -128,6 +134,7 @@ class ExamAttemptStartView(APIView):
                 "text": q.text,
                 "marks": q.marks,
                 "order": q.order,
+                "image": request.build_absolute_uri(q.image.url) if q.image else None,
                 "options": options,
             })
 
