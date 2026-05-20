@@ -2,9 +2,9 @@ from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django.shortcuts import get_object_or_404
-
+import json
 
 from .models import Exam, Question
 from .serializers import QuestionCreateSerializer, QuestionListSerializer
@@ -17,12 +17,14 @@ class QuestionListCreateView(APIView):
     POST /api/exams/{exam_id}/questions/  — add a question with options
     """
     permission_classes = [IsAuthenticated]
-    parser_classes = [MultiPartParser, FormParser]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]  # JSONParser not JsonParser
 
     def get(self, request, exam_id):
         exam = get_object_or_404(Exam, pk=exam_id)
         questions = exam.questions.prefetch_related("options").all()
-        serializer = QuestionListSerializer(questions, many=True)
+        serializer = QuestionListSerializer(
+            questions, many=True, context={"request": request}
+        )
         return Response(
             {"count": questions.count(), "results": serializer.data},
             status=status.HTTP_200_OK,
@@ -30,7 +32,6 @@ class QuestionListCreateView(APIView):
 
     def post(self, request, exam_id):
         exam = get_object_or_404(Exam, pk=exam_id)
-
         if exam.exam_type != "computer":
             return Response(
                 {"detail": "Questions can only be added to computer-based exams."},
@@ -39,11 +40,37 @@ class QuestionListCreateView(APIView):
 
         if exam.status != "upcoming":
             return Response(
-                {"detail": f"Cannot add questions to an exam with status '{exam.status}'. Only upcoming exams can be modified."},
+                {"detail": f"Cannot add questions to an exam with status '{exam.status}'."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        serializer = QuestionCreateSerializer(data=request.data)
+        # ── Build mutable data dict manually ─────────────────────────────────
+        data = {
+            "text":  request.data.get("text", ""),
+            "marks": request.data.get("marks", 1),
+            "order": request.data.get("order", 0),
+        }
+
+        if "image_upload" in request.FILES:
+            data["image_upload"] = request.FILES["image_upload"]
+
+        # Parse options — arrives as JSON string via FormData, or list via JSON body
+        raw_options = request.data.get("options")
+        if isinstance(raw_options, str):
+            try:
+                data["options"] = json.loads(raw_options)
+            except json.JSONDecodeError:
+                return Response(
+                    {"options": "Invalid JSON format."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        else:
+            data["options"] = raw_options
+        # ─────────────────────────────────────────────────────────────────────
+
+        serializer = QuestionCreateSerializer(
+            data=data, context={"request": request}
+        )
         serializer.is_valid(raise_exception=True)
         question = serializer.save(exam=exam)
 
@@ -54,10 +81,9 @@ class QuestionListCreateView(APIView):
         )
 
         return Response(
-            QuestionListSerializer(question).data,
+            QuestionListSerializer(question, context={"request": request}).data,
             status=status.HTTP_201_CREATED,
         )
-
 
 class QuestionRetrieveUpdateDestroyView(APIView):
     """
@@ -87,8 +113,31 @@ class QuestionRetrieveUpdateDestroyView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        # ── Parse options JSON string from FormData ───────────────────────────
+        data = {
+            "text":  request.data.get("text", ""),
+            "marks": request.data.get("marks", 1),
+            "order": request.data.get("order", 0),
+        }
+
+        if "image_upload" in request.FILES:
+            data["image_upload"] = request.FILES["image_upload"]
+
+        raw_options = request.data.get("options")
+        if isinstance(raw_options, str):
+            try:
+                data["options"] = json.loads(raw_options)
+            except json.JSONDecodeError:
+                return Response(
+                    {"options": "Invalid JSON format."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        elif raw_options is not None:
+            data["options"] = raw_options
+        # ─────────────────────────────────────────────────────────────────────
+
         serializer = QuestionCreateSerializer(
-            question, data=request.data, partial=True
+            question, data=data, partial=True, context={"request": request}
         )
         serializer.is_valid(raise_exception=True)
         question = serializer.save()
@@ -100,7 +149,7 @@ class QuestionRetrieveUpdateDestroyView(APIView):
         )
 
         return Response(
-            QuestionListSerializer(question).data,
+            QuestionListSerializer(question, context={"request": request}).data,
             status=status.HTTP_200_OK,
         )
 
