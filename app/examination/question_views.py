@@ -2,7 +2,9 @@ from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.parsers import MultiPartParser, FormParser
 from django.shortcuts import get_object_or_404
+
 
 from .models import Exam, Question
 from .serializers import QuestionCreateSerializer, QuestionListSerializer
@@ -15,6 +17,7 @@ class QuestionListCreateView(APIView):
     POST /api/exams/{exam_id}/questions/  — add a question with options
     """
     permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
 
     def get(self, request, exam_id):
         exam = get_object_or_404(Exam, pk=exam_id)
@@ -63,6 +66,7 @@ class QuestionRetrieveUpdateDestroyView(APIView):
     DELETE /api/exams/{exam_id}/questions/{id}/  — delete question
     """
     permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
 
     def _get_question(self, exam_id, question_id):
         exam = get_object_or_404(Exam, pk=exam_id)

@@ -10,7 +10,7 @@ from face_recognition.models import ExamSession
 from blockchain_layer.models import DIDEntry
 from blockchain_layer.utils import create_blockchain_record
 from monitoring.utils import log_activity
-
+from .emails import send_result_published
 
 def _sha256(data: str) -> str:
     return hashlib.sha256(data.encode("utf-8")).hexdigest()
@@ -66,6 +66,7 @@ def _publish_result(result: Result, registration, exam):
         "result_hash", "certificate_id", "blockchain_tx",
         "is_published", "published_at",
     ])
+    send_result_published(result)
 
     return result, blockchain_record
 

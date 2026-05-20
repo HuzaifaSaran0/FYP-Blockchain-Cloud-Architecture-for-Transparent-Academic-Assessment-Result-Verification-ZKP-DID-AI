@@ -27,6 +27,7 @@ INSTALLED_APPS = [
     "blockchain_layer",
     "monitoring",
     "face_recognition",
+    "reports",
 ]
 
 MIDDLEWARE = [
@@ -121,3 +122,18 @@ SIMPLE_JWT = {
     "BLACKLIST_AFTER_ROTATION": True,
     "AUTH_HEADER_TYPES": ("Bearer",),
 }
+
+# ── EMAIL ─────────────────────────────────────────────────────────
+EMAIL_BACKEND = os.environ.get(
+    "EMAIL_BACKEND",
+    "django.core.mail.backends.smtp.EmailBackend"  # prints to console in dev
+)
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "smtp.gmail.com")
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT", 587))
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "buddysaran4@gmail.com")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "iisvtizhembhtxcd")
+DEFAULT_FROM_EMAIL = os.environ.get(
+    "DEFAULT_FROM_EMAIL", "ZKAI Examination System <buddysaran4@gmail.com>"
+)
+FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")

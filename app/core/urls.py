@@ -4,8 +4,10 @@ from django.conf import settings
 from django.conf.urls.static import static
 from examination.urls import public_urlpatterns as exam_public_urls
 from examination.registration_views import PublicRegistrationSubmitView
+from examination.result_urls import public_urlpatterns as result_public_urls
 
-public_patterns = exam_public_urls + [
+
+public_patterns = exam_public_urls + result_public_urls + [
     path(
         "register/",
         PublicRegistrationSubmitView.as_view(),
@@ -25,6 +27,7 @@ urlpatterns = [
     path("api/public/", include((public_patterns, "public"))),
     path("api/monitoring/", include("monitoring.urls")),
     path("api/blockchain/", include("blockchain_layer.urls")),
+    path("api/reports/", include("reports.urls")),
 ]
 
 if settings.DEBUG:

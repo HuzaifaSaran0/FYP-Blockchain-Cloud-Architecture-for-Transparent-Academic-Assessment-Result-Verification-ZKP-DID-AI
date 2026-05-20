@@ -337,57 +337,108 @@ class QuestionOptionSerializer(serializers.ModelSerializer):
         fields = ["id", "text", "is_correct", "order"]
 
 
+class QuestionOptionSerializer(serializers.ModelSerializer):
+    image = serializers.SerializerMethodField()
+    image_upload = serializers.ImageField(
+        write_only=True, required=False, allow_null=True
+    )
+
+    class Meta:
+        model = QuestionOption
+        fields = ["id", "text", "is_correct", "order", "image", "image_upload"]
+
+    def get_image(self, obj) -> str | None:
+        request = self.context.get("request")
+        if obj.image:
+            return request.build_absolute_uri(obj.image.url) if request else obj.image.url
+        return None
+
+
 class QuestionCreateSerializer(serializers.ModelSerializer):
     options = QuestionOptionSerializer(many=True)
+    image = serializers.SerializerMethodField()
+    image_upload = serializers.ImageField(
+        write_only=True, required=False, allow_null=True
+    )
 
     class Meta:
         model = Question
-        fields = ["id", "text", "marks", "order", "options", "created_at"]
+        fields = [
+            "id", "text", "marks", "order",
+            "image", "image_upload",
+            "options", "created_at",
+        ]
         read_only_fields = ["id", "created_at"]
+
+    def get_image(self, obj) -> str | None:
+        request = self.context.get("request")
+        if obj.image:
+            return request.build_absolute_uri(obj.image.url) if request else obj.image.url
+        return None
 
     def validate_options(self, options):
         if len(options) < 2:
-            raise serializers.ValidationError(
-                "A question must have at least 2 options."
-            )
+            raise serializers.ValidationError("A question must have at least 2 options.")
         if len(options) > 5:
-            raise serializers.ValidationError(
-                "A question cannot have more than 5 options."
-            )
+            raise serializers.ValidationError("A question cannot have more than 5 options.")
         correct_count = sum(1 for opt in options if opt.get("is_correct", False))
         if correct_count == 0:
-            raise serializers.ValidationError(
-                "Exactly one option must be marked as correct."
-            )
+            raise serializers.ValidationError("Exactly one option must be marked as correct.")
         if correct_count > 1:
-            raise serializers.ValidationError(
-                "Only one option can be marked as correct."
-            )
+            raise serializers.ValidationError("Only one option can be marked as correct.")
         return options
 
     def create(self, validated_data):
         options_data = validated_data.pop("options")
+        image_upload = validated_data.pop("image_upload", None)
+        request = self.context.get("request")
+
         question = Question.objects.create(**validated_data)
-        for option_data in options_data:
-            QuestionOption.objects.create(question=question, **option_data)
+        if image_upload:
+            question.image = image_upload
+            question.save(update_fields=["image"])
+
+        for i, option_data in enumerate(options_data):
+            option_data.pop("image_upload", None)
+            opt = QuestionOption.objects.create(question=question, **option_data)
+            if request and f"option_image_{i}" in request.FILES:
+                opt.image = request.FILES[f"option_image_{i}"]
+                opt.save(update_fields=["image"])
         return question
 
     def update(self, instance, validated_data):
         options_data = validated_data.pop("options", None)
+        image_upload = validated_data.pop("image_upload", None)
+        request = self.context.get("request")
+
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
+        if image_upload:
+            instance.image = image_upload
         instance.save()
+
         if options_data is not None:
             instance.options.all().delete()
-            for option_data in options_data:
-                QuestionOption.objects.create(question=instance, **option_data)
+            for i, option_data in enumerate(options_data):
+                option_data.pop("image_upload", None)
+                opt = QuestionOption.objects.create(question=instance, **option_data)
+                if request and f"option_image_{i}" in request.FILES:
+                    opt.image = request.FILES[f"option_image_{i}"]
+                    opt.save(update_fields=["image"])
         return instance
 
 
 class QuestionListSerializer(serializers.ModelSerializer):
     options = QuestionOptionSerializer(many=True, read_only=True)
+    image = serializers.SerializerMethodField()
 
     class Meta:
         model = Question
-        fields = ["id", "text", "marks", "order", "options", "created_at"]
+        fields = ["id", "text", "marks", "order", "image", "options", "created_at"]
         read_only_fields = fields
+
+    def get_image(self, obj) -> str | None:
+        request = self.context.get("request")
+        if obj.image:
+            return request.build_absolute_uri(obj.image.url) if request else obj.image.url
+        return None

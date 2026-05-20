@@ -16,6 +16,11 @@ from .serializers import (
 )
 from blockchain_layer.utils import create_blockchain_record
 from monitoring.utils import log_activity
+from .emails import (
+    send_registration_submitted,
+    send_registration_approved,
+    send_registration_rejected,
+)
 
 
 def _generate_did() -> str:
@@ -47,7 +52,7 @@ class PublicRegistrationSubmitView(APIView):
         serializer = RegistrationSubmitSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         registration = serializer.save()
-
+        send_registration_submitted(registration)
         return Response(
             {
                 "id": registration.id,
@@ -168,6 +173,7 @@ class RegistrationApproveView(APIView):
             performed_by=request.user.full_name,
             request=request,
         )
+        send_registration_approved(registration)
 
         serializer = RegistrationDetailSerializer(
             registration, context={"request": request}
@@ -212,6 +218,7 @@ class RegistrationRejectView(APIView):
             performed_by=request.user.full_name,
             request=request,
         )
+        send_registration_rejected(registration) 
 
         detail_serializer = RegistrationDetailSerializer(
             registration, context={"request": request}

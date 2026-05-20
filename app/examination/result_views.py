@@ -4,7 +4,7 @@ from django.utils import timezone
 from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework import status
 
 from .models import Registration, Exam, Result, StudentAnswer
@@ -222,6 +222,59 @@ class StudentAnswerDetailView(APIView):
                 "total_marks": result.total_marks,
                 "grade": result.grade,
                 "answers": answers_data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+class PublicCertificateVerifyView(APIView):
+    """
+    GET /api/public/verify/?cert=CERT-ID
+    Public — no auth required.
+    Returns ONLY name, exam, grade, pass/fail, blockchain TX.
+    Never exposes marks or personal details.
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        cert_id = (request.query_params.get("cert") or request.query_params.get("certificate_id") or "").strip()
+        if not cert_id:
+            return Response(
+                {"is_valid": False, "message": "Certificate ID is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            result = Result.objects.select_related(
+                "registration", "exam"
+            ).get(certificate_id=cert_id, is_published=True)
+        except Result.DoesNotExist:
+            return Response(
+                {
+                    "is_valid": False,
+                    "student_name": None,
+                    "exam_title": None,
+                    "result_status": None,
+                    "grade": None,
+                    "issued_date": None,
+                    "blockchain_tx_id": None,
+                    "message": "No verified result found for this Certificate ID.",
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        return Response(
+            {
+                "is_valid": True,
+                "student_name": result.registration.full_name,
+                "exam_title": result.exam.title,
+                "result_status": result.result_status,   # "pass" or "fail"
+                "grade": result.grade,
+                "issued_date": (
+                    result.published_at.strftime("%d %B %Y")
+                    if result.published_at else None
+                ),
+                "blockchain_tx_id": result.blockchain_tx,
+                "message": "Result verified successfully on blockchain.",
             },
             status=status.HTTP_200_OK,
         )

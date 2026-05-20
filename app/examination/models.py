@@ -143,12 +143,9 @@ class Result(models.Model):
         return f"{self.registration.full_name} — {self.exam.title}"
 
 class Question(models.Model):
-    exam = models.ForeignKey(
-        Exam,
-        on_delete=models.CASCADE,
-        related_name="questions",
-    )
+    exam = models.ForeignKey(Exam, on_delete=models.CASCADE, related_name="questions")
     text = models.TextField()
+    image = models.ImageField(upload_to="questions/", null=True, blank=True)  # ← ADD
     marks = models.PositiveIntegerField(default=1)
     order = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -161,12 +158,9 @@ class Question(models.Model):
 
 
 class QuestionOption(models.Model):
-    question = models.ForeignKey(
-        Question,
-        on_delete=models.CASCADE,
-        related_name="options",
-    )
-    text = models.CharField(max_length=255)
+    question = models.ForeignKey(Question, on_delete=models.CASCADE, related_name="options")
+    text = models.CharField(max_length=255, blank=True)  # ← make blank=True (image-only options)
+    image = models.ImageField(upload_to="question_options/", null=True, blank=True)  # ← ADD
     is_correct = models.BooleanField(default=False)
     order = models.PositiveIntegerField(default=0)
 
