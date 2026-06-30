@@ -11,8 +11,6 @@ The repository is structured as a functional backend prototype with deployment-r
 
 ![Project Demo](app/video/demo.gif)
 
-**[Watch full demo video (MP4)](app/video/video.mp4)**
-
 ## Key Features
 - JWT-based authentication for administrative users
 - Exam creation and management for paper-based and computer-based exams
