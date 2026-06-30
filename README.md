@@ -8,7 +8,7 @@ This project is designed to improve the transparency and integrity of academic a
 The repository is structured as a functional backend prototype with deployment-ready Docker support. It is especially suited for research, demonstration, and controlled deployment scenarios where exam integrity, verification, and operational traceability are key concerns.
 
 ## Demo
-<video src="docs/video.mp4" controls width="800">
+<video src="app/video/video.mp4" controls width="800">
   Your browser does not support the video tag.
 </video>
 
